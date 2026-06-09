@@ -6,6 +6,7 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -15,21 +16,28 @@ import android.os.Looper;
 import android.provider.MediaStore;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
+import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 public class MainActivity extends Activity {
 
     private static final String TAG = "PostaviGtin";
+    private static final int FILE_CHOOSER_REQ = 2001;
     private WebView webView;
+    private ValueCallback<Uri[]> filePathCallback;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     @SuppressLint({"SetJavaScriptEnabled", "JavascriptInterface"})
@@ -48,13 +56,44 @@ public class MainActivity extends Activity {
         ws.setCacheMode(WebSettings.LOAD_DEFAULT);
 
         webView.setWebViewClient(new WebViewClient());
-        webView.setWebChromeClient(new WebChromeClient());
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> cb,
+                                             FileChooserParams params) {
+                if (filePathCallback != null) filePathCallback.onReceiveValue(null);
+                filePathCallback = cb;
+                Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType("*/*");
+                try {
+                    startActivityForResult(Intent.createChooser(i, "Izberi CSV"), FILE_CHOOSER_REQ);
+                } catch (Exception e) {
+                    filePathCallback = null;
+                    return false;
+                }
+                return true;
+            }
+        });
         webView.addJavascriptInterface(new JsBridge(), "AndroidBridge");
         // Zagotovi, da WebView prejema tipke (DataWedge keystroke / HID)
         webView.setFocusable(true);
         webView.setFocusableInTouchMode(true);
         webView.requestFocus();
         webView.loadUrl("file:///android_asset/postavi_gtin.html");
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == FILE_CHOOSER_REQ) {
+            if (filePathCallback == null) return;
+            Uri[] results = null;
+            if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+                results = new Uri[]{ data.getData() };
+            }
+            filePathCallback.onReceiveValue(results);
+            filePathCallback = null;
+        }
     }
 
     // JavaScript interface — omogoča HTML klicanje Androida
@@ -68,6 +107,34 @@ public class MainActivity extends Activity {
         public void toast(String msg) {
             if (msg == null) return;
             mainHandler.post(() -> Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show());
+        }
+
+        // Prebere najnovejsi .csv iz lastne mape aplikacije (brez dovoljenj):
+        //   /sdcard/Android/data/si.kclj.gtinpredloga/files/
+        // Vrne vsebino datoteke ali "" ce je ni.
+        @JavascriptInterface
+        public String loadTemplate() {
+            try {
+                File dir = getExternalFilesDir(null);
+                if (dir == null || !dir.exists()) return "";
+                File[] files = dir.listFiles((d, n) -> n.toLowerCase().endsWith(".csv"));
+                if (files == null || files.length == 0) return "";
+                Arrays.sort(files, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+                File f = files[0];
+                FileInputStream in = new FileInputStream(f);
+                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = in.read(buf)) > 0) bos.write(buf, 0, n);
+                in.close();
+                String s = new String(bos.toByteArray(), StandardCharsets.UTF_8);
+                if (s.length() > 0 && s.charAt(0) == '﻿') s = s.substring(1); // odstrani BOM
+                Log.d(TAG, "loadTemplate: " + f.getName() + " (" + s.length() + " znakov)");
+                return s;
+            } catch (Throwable t) {
+                Log.e(TAG, "loadTemplate: " + t);
+                return "";
+            }
         }
 
         @JavascriptInterface

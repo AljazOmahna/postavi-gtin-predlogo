@@ -166,8 +166,9 @@ tr.trow.tgt{background:rgba(56,189,248,.14)}
 <!-- UVOZ -->
 <div class="card">
   <div class="card-t">&#128229; Uvoz predloge (CSV)</div>
+  <button class="btn btn-green btn-w" style="margin-bottom:10px" onclick="loadFromDevice()">&#128229; Nalozi predlogo iz naprave</button>
   <div class="muted" style="margin-bottom:8px">Stolpci: <span style="font-family:var(--mono);color:var(--accent)">gtin,name,type,manufacturer,analyser,note,catalog,ident</span></div>
-  <div class="fg"><label>Nalozi datoteko</label><input type="file" id="impFile" accept=".csv,.txt" onchange="readFile(this)" style="font-size:12px"></div>
+  <div class="fg"><label>ali izberi datoteko</label><input type="file" id="impFile" accept=".csv,.txt" onchange="readFile(this)" style="font-size:12px"></div>
   <div class="fg"><label>ali prilepi CSV</label><textarea id="impTxt" style="min-height:80px;font-family:var(--mono);font-size:11px"></textarea></div>
   <button class="btn btn-a btn-w" onclick="importText($i('impTxt').value)">&#128229; Uvozi predlogo</button>
 </div>
@@ -407,6 +408,12 @@ function importText(txt){
   notify('Uvozeno '+items.length+' (z GTIN: '+withG+')'+(bad?', preskoceno '+bad:''),'ok');
 }
 function readFile(input){var f=input.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){$i('impTxt').value=e.target.result;importText(e.target.result);};rd.readAsText(f);}
+function loadFromDevice(){
+  if(typeof AndroidBridge==='undefined'||!AndroidBridge.loadTemplate){notify('Na voljo le v aplikaciji','warn');return;}
+  var txt='';try{txt=AndroidBridge.loadTemplate();}catch(e){}
+  if(!txt||!txt.trim()){notify('V mapi aplikacije ni CSV datoteke','err');return;}
+  importText(txt);
+}
 
 function copyCsv(){
   if(!LIST.length){notify('Seznam je prazen','warn');return;}
