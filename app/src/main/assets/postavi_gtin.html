@@ -262,8 +262,8 @@ function onGtinEdit(){$i('fGtin').value=$i('fGtin').value.replace(/\D/g,'').slic
 // ===== SEZNAM =====
 var LIST=[];
 var TYPES={calibrator:['Kalibrator','b-cal'],control:['Kontrola (QC)','b-qc'],'reagent-bio':['Reagent Bio','b-rb'],'reagent-imuno':['Reagent IMUNO','b-ri'],consumable:['Potros. mat.','b-co']};
-function loadList(){try{LIST=JSON.parse(localStorage.getItem('gtinBuilderList')||'[]');}catch(e){LIST=[];}}
-function saveList(){try{localStorage.setItem('gtinBuilderList',JSON.stringify(LIST));}catch(e){}}
+function loadList(){try{LIST=JSON.parse(localStorage.getItem('gtinPredlogaList')||'[]');}catch(e){LIST=[];}}
+function saveList(){try{localStorage.setItem('gtinPredlogaList',JSON.stringify(LIST));}catch(e){}}
 
 function addItem(){
   var gtin=$i('fGtin').value.trim().replace(/\D/g,'');
