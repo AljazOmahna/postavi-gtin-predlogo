@@ -19,28 +19,6 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Cache debug keystore
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: debug-keystore-v1
-
-      - name: Create debug keystore if missing
-        run: |
-          if [ ! -f ~/.android/debug.keystore ]; then
-            mkdir -p ~/.android
-            keytool -genkey -v \
-              -keystore ~/.android/debug.keystore \
-              -storepass android \
-              -alias androiddebugkey \
-              -keypass android \
-              -keyalg RSA -keysize 2048 -validity 36500 \
-              -dname "CN=PostaviGtinPredlogo Debug,O=KCLJ,C=SI"
-            echo "Keystore created"
-          else
-            echo "Keystore restored from cache"
-          fi
-
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
