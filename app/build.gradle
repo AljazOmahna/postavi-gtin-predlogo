@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace 'si.kclj.gtinbuilder'
+    namespace 'si.kclj.gtinpredloga'
     compileSdk 34
 
     defaultConfig {
-        applicationId "si.kclj.gtinbuilder"
+        applicationId "si.kclj.gtinpredloga"
         minSdk 26
         targetSdk 34
         versionCode 1

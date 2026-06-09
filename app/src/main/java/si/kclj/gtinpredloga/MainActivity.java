@@ -1,4 +1,4 @@
-package si.kclj.gtinbuilder;
+package si.kclj.gtinpredloga;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -28,7 +28,7 @@ import java.nio.charset.StandardCharsets;
 
 public class MainActivity extends Activity {
 
-    private static final String TAG = "GtinBuilder";
+    private static final String TAG = "PostaviGtin";
     private WebView webView;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
@@ -54,7 +54,7 @@ public class MainActivity extends Activity {
         webView.setFocusable(true);
         webView.setFocusableInTouchMode(true);
         webView.requestFocus();
-        webView.loadUrl("file:///android_asset/gtin_builder.html");
+        webView.loadUrl("file:///android_asset/postavi_gtin.html");
     }
 
     // JavaScript interface — omogoča HTML klicanje Androida

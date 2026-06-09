@@ -35,7 +35,7 @@ jobs:
               -alias androiddebugkey \
               -keypass android \
               -keyalg RSA -keysize 2048 -validity 36500 \
-              -dname "CN=GtinBuilder Debug,O=KCLJ,C=SI"
+              -dname "CN=PostaviGtinPredlogo Debug,O=KCLJ,C=SI"
             echo "Keystore created"
           else
             echo "Keystore restored from cache"
@@ -53,6 +53,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: GtinBuilder-debug
+          name: PostaviGtinPredlogo-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
