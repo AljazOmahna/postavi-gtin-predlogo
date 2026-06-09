@@ -113,7 +113,8 @@ tr.trow.tgt{background:rgba(56,189,248,.14)}
     </div>
   </div>
 
-  <div class="muted" style="margin-top:8px" id="scanHint">Pritisni sprozilec na Zebri. GTIN (01) se vpise v izbrano vrstico, kataloska (240) se dopolni.</div>
+  <div class="muted" style="margin-top:8px" id="scanHint">Skeniraj SGTIN: po kataloski (240) najde artikel in vpise GTIN (01).</div>
+  <div id="lastScan" style="margin-top:8px;font-size:12px"></div>
 </div>
 
 <!-- DODAJ NOV (add mode) -->
@@ -254,18 +255,38 @@ function setMode(m){
   $i('fillWrap').classList.toggle('hide',m!=='fill');
   $i('addCard').classList.toggle('hide',m!=='add');
   $i('scanHint').textContent = m==='fill'
-    ? 'Skeniraj: GTIN (01) se vpise v izbrano vrstico, kataloska (240) se dopolni.'
+    ? 'Skeniraj SGTIN: po kataloski (240) najde artikel in vpise GTIN (01). Brez 240 polni izbrano vrstico.'
     : 'Skeniraj nov artikel, dopolni naziv/tip in pritisni Dodaj.';
   if(m==='fill'&&targetIndex<0)targetIndex=nextEmpty(0);
   render();focusScan();
 }
 function focusScan(){setTimeout(function(){var s=$i('scanInput');if(s)s.focus();},120);}
 
+// ===== UJEMANJE PO KATALOSKI (AI 240) =====
+function normCat(s){return String(s==null?'':s).toUpperCase().replace(/[^A-Z0-9]/g,'');}
+function normCatNZ(s){return normCat(s).replace(/^0+/,'');}  // brez vodilnih nicel
+function findByCatalog(cat){
+  var c=normCat(cat); if(!c)return [];
+  var cz=normCatNZ(cat); var out=[];
+  // 1) tocno (normalizirano)
+  for(var i=0;i<LIST.length;i++){ if(LIST[i].catalog && normCat(LIST[i].catalog)===c) out.push(i); }
+  if(out.length)return out;
+  // 2) brez vodilnih nicel
+  for(var i=0;i<LIST.length;i++){ if(LIST[i].catalog && normCatNZ(LIST[i].catalog)===cz) out.push(i); }
+  if(out.length)return out;
+  // 3) eden je predpona/pripona drugega (min 4 znaki; npr. 240 brez "-30" sufiksa)
+  if(cz.length>=4){
+    for(var i=0;i<LIST.length;i++){ var lc=normCatNZ(LIST[i].catalog); if(lc.length>=4 && (lc===cz || lc.indexOf(cz)>=0 || cz.indexOf(lc)>=0)) out.push(i); }
+  }
+  return out;
+}
+function setLastScan(html,cls){var e=$i('lastScan');if(!e)return;var col=cls==='ok'?'var(--green)':cls==='warn'?'var(--amber)':cls==='err'?'var(--red)':'var(--text3)';e.style.color=col;e.innerHTML=html;}
+
 // ===== OBDELAVA SKENA =====
 function handleScan(code){
   if(!code||code.length<4)return;
   var r=parseGS1(code);
-  if(!r.gtin){notify('Iz kode ni mogoce izlusciti GTIN','err');return;}
+  if(!r.gtin){setLastScan('&#10060; Iz kode ni mogoce izlusciti GTIN','err');notify('Ni GTIN','err');return;}
   if(MODE==='add'){
     $i('fGtin').value=r.gtin;
     if(r.catalog)$i('fCatalog').value=r.catalog;
@@ -274,20 +295,51 @@ function handleScan(code){
     $i('fName').focus();
     return;
   }
-  // FILL nacin
+  // ===== FILL nacin =====
   if(!LIST.length){notify('Najprej uvozi predlogo','warn');return;}
-  if(!validGtin(r.gtin)){notify('Neveljavna GTIN kontrolna st. ('+r.gtin+')','err');return;}
-  var t=(targetIndex>=0&&targetIndex<LIST.length)?targetIndex:nextEmpty(0);
-  if(t<0){notify('Vse vrstice ze imajo GTIN','ok');return;}
-  // duplikat?
-  var dup=-1;for(var k=0;k<LIST.length;k++){if(k!==t&&LIST[k].gtin===r.gtin){dup=k;break;}}
-  if(dup>=0){notify('GTIN ze obstaja: '+LIST[dup].name,'warn');return;}
+  if(!validGtin(r.gtin)){setLastScan('&#10060; Neveljaven GTIN: '+esc(r.gtin),'err');notify('Neveljaven GTIN','err');return;}
+  var info='01 '+esc(r.gtin)+(r.catalog?(' &middot; 240 <b>'+esc(r.catalog)+'</b>'):' &middot; (brez 240)');
+
+  // duplikat GTIN (ze vpisan drugje)?
+  var dupG=-1;for(var k=0;k<LIST.length;k++){if(LIST[k].gtin===r.gtin){dupG=k;break;}}
+
+  var t=-1;
+  if(r.catalog){
+    var m=findByCatalog(r.catalog);
+    if(m.length>=1){
+      var empt=m.filter(function(i){return !LIST[i].gtin;});
+      t=empt.length?empt[0]:m[0];
+      if(m.length>1)notify('Vec artiklov z isto kataloska ('+m.length+')','warn');
+    }
+  }
+  // brez 240 ali brez zadetka -> fallback na izbrano/naslednjo vrstico
+  var matchedByCat=(t>=0);
+  if(t<0){
+    if(r.catalog){
+      // 240 obstaja a ga ni v predlogi -> NE ugibaj, javi
+      setLastScan(info+' &mdash; <b>kataloska ni v predlogi</b>','err');
+      notify('Kataloska '+r.catalog+' ni v predlogi','err');
+      return;
+    }
+    // ni 240: napolni trenutno izbrano/naslednjo prazno
+    t=(targetIndex>=0&&targetIndex<LIST.length&&!LIST[targetIndex].gtin)?targetIndex:nextEmpty(0);
+    if(t<0){setLastScan(info+' &mdash; vse vrstice ze imajo GTIN','warn');notify('Vse ze imajo GTIN','ok');return;}
+  }
+
+  // ce je isti GTIN ze drugje (ne na tej vrstici)
+  if(dupG>=0 && dupG!==t){setLastScan(info+' &mdash; GTIN ze vpisan pri: '+esc(LIST[dupG].name),'warn');notify('GTIN ze obstaja: '+LIST[dupG].name,'warn');return;}
+
+  // ce vrstica ze ima drugacen GTIN -> potrdi zamenjavo
+  if(LIST[t].gtin && LIST[t].gtin!==r.gtin){
+    if(!confirm('"'+LIST[t].name+'" ze ima GTIN '+LIST[t].gtin+'. Zamenjati z '+r.gtin+'?')){return;}
+  }
+
   LIST[t].gtin=r.gtin;
   if(r.catalog&&!LIST[t].catalog)LIST[t].catalog=r.catalog;
   saveList();
+  setLastScan(info+' &rarr; <b style="color:var(--green)">'+esc(LIST[t].name)+'</b>'+(matchedByCat?' (po kataloski)':' (izbrana vrstica)'),'ok');
   notify('✔ '+(LIST[t].name||r.gtin),'ok');
-  targetIndex=nextEmpty(t+1);
-  if(targetIndex<0)targetIndex=nextEmpty(0);
+  targetIndex=nextEmpty(0);
   render();focusScan();
 }
 
