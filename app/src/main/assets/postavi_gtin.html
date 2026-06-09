@@ -23,7 +23,7 @@ body{padding:0 12px 90px}
 #scanInput{flex:1;padding:12px;border:2px solid var(--accent);border-radius:10px;background:var(--bg);color:var(--text);font-size:14px;font-family:var(--mono)}
 .fg{margin-bottom:10px}
 .fg label{display:block;font-size:11px;font-weight:600;color:var(--text3);margin-bottom:4px}
-.fg input,.fg select{width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px}
+.fg input,.fg select,textarea{width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px}
 .fg input[readonly]{background:var(--bg3);color:var(--accent);font-family:var(--mono);font-weight:700}
 .row{display:flex;gap:8px}
 .row>.fg{flex:1}
@@ -35,28 +35,63 @@ body{padding:0 12px 90px}
 .btn-sm{padding:7px 10px;font-size:12px;border-radius:8px}
 .btn-w{width:100%}
 .muted{font-size:11px;color:var(--text3)}
+.hide{display:none !important}
+/* mode toggle */
+.modes{display:flex;gap:8px;margin-top:12px}
+.modes .btn{flex:1}
+.modes .btn.on{outline:2px solid var(--accent)}
+/* progress */
+.prog-top{display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:8px}
+.pbar{height:8px;background:var(--bg3);border-radius:6px;overflow:hidden}
+.pbar>i{display:block;height:100%;background:var(--green);transition:width .25s}
+/* target panel */
+#target{background:var(--bg3);border:1px solid var(--accent);border-radius:10px;padding:12px}
+#target .tname{font-size:16px;font-weight:800;color:var(--text)}
+#target .tmeta{font-size:11px;color:var(--text3);margin-top:4px}
+#target.done{border-color:var(--green)}
 table{width:100%;border-collapse:collapse;margin-top:6px}
-th,td{text-align:left;padding:7px 6px;font-size:12px;border-bottom:1px solid var(--border)}
+th,td{text-align:left;padding:7px 6px;font-size:12px;border-bottom:1px solid var(--border);vertical-align:top}
 th{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);font-weight:700}
-td.g{font-family:var(--mono);font-size:11px;color:var(--accent2)}
+td.g{font-family:var(--mono);font-size:11px}
+tr.trow{cursor:pointer}
+tr.trow.tgt{background:rgba(56,189,248,.14)}
+.mk{font-size:13px}
 .badge{display:inline-block;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700}
 .b-cal{background:#0c4a6e;color:#7dd3fc}.b-qc{background:#3f2d12;color:#fbbf24}
 .b-rb{background:#14352a;color:#6ee7b7}.b-ri{background:#2e1065;color:#c4b5fd}.b-co{background:#334155;color:#cbd5e1}
 .empty{text-align:center;color:var(--text3);padding:18px;font-size:13px}
 .cnt{font-family:var(--mono);background:var(--bg3);color:var(--accent);padding:2px 8px;border-radius:8px;font-size:12px;font-weight:700}
-#csvOut{width:100%;min-height:90px;font-family:var(--mono);font-size:11px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text2);white-space:pre;overflow:auto}
+#csvOut{width:100%;min-height:80px;font-family:var(--mono);font-size:11px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text2);white-space:pre;overflow:auto}
 .notif{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:var(--bg3);color:var(--text);padding:10px 16px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.4);opacity:0;transition:opacity .2s;pointer-events:none;z-index:50;border:1px solid var(--border)}
 .notif.show{opacity:1}
 .notif.ok{border-color:var(--green)}.notif.warn{border-color:var(--amber)}.notif.err{border-color:var(--red)}
 .flash{animation:fl .5s ease}
 @keyframes fl{0%{background:#0c4a6e}100%{background:var(--bg3)}}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap}
+.search{margin:8px 0}
+.search input{width:100%}
 </style>
 </head>
 <body>
 
 <div class="hdr">
   <h1>&#127991;&#65039; Postavi GTIN predlogo</h1>
-  <div class="sub">Skeniranje reagentov &rarr; CSV predloga za uvoz v Pregled BK</div>
+  <div class="sub">Doskeniraj GTIN na predlogo &rarr; CSV za Pregled BK</div>
+</div>
+
+<!-- NAPREDEK -->
+<div class="card" id="progCard">
+  <div class="prog-top">
+    <span><b id="pFilled">0</b> / <span id="pTotal">0</span> ima GTIN</span>
+    <span class="muted" id="pLeft"></span>
+  </div>
+  <div class="pbar"><i id="pBar" style="width:0%"></i></div>
+</div>
+
+<!-- NACIN -->
+<div class="modes">
+  <button class="btn btn-g on" id="mFill" onclick="setMode('fill')">&#127919; Doskeniraj GTIN</button>
+  <button class="btn btn-g" id="mAdd" onclick="setMode('add')">&#10133; Dodaj nov</button>
 </div>
 
 <!-- SKENIRANJE -->
@@ -66,59 +101,47 @@ td.g{font-family:var(--mono);font-size:11px;color:var(--accent2)}
     <input type="text" id="scanInput" placeholder="Skeniraj QR / DataMatrix / barcode..."
       autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="none"
       oninput="onScanInput()" onkeydown="onScanKey(event)">
-    <button class="btn btn-g btn-sm" onclick="clearForm()">&#10005;</button>
+    <button class="btn btn-g btn-sm" onclick="$i('scanInput').value='';clearForm();">&#10005;</button>
   </div>
-  <div class="muted" style="margin-top:6px" id="scanHint">Pritisni sprozilec na Zebri ali skeniraj kodo. GTIN se izlusci samodejno.</div>
+
+  <!-- TARCA (fill mode) -->
+  <div id="fillWrap" style="margin-top:10px">
+    <div id="target"></div>
+    <div class="toolbar" style="margin-top:10px">
+      <button class="btn btn-g btn-sm" onclick="skipTarget()">&#9197; Preskoci</button>
+      <button class="btn btn-g btn-sm" onclick="clearTargetGtin()">&#9003; Pocisti GTIN te vrstice</button>
+    </div>
+  </div>
+
+  <div class="muted" style="margin-top:8px" id="scanHint">Pritisni sprozilec na Zebri. GTIN (01) se vpise v izbrano vrstico, kataloska (240) se dopolni.</div>
 </div>
 
-<!-- VNOS -->
-<div class="card" id="formCard">
-  <div class="card-t">&#9999;&#65039; Podatki reagenta</div>
-  <div class="fg">
-    <label>GTIN (14 mest)</label>
-    <input type="text" id="fGtin" maxlength="14" inputmode="numeric" oninput="onGtinEdit()" placeholder="skeniraj ali vpisi">
-  </div>
-  <div class="fg">
-    <label>Naziv *</label>
-    <input type="text" id="fName" placeholder="npr. ICT Serum Cals">
-  </div>
+<!-- DODAJ NOV (add mode) -->
+<div class="card hide" id="addCard">
+  <div class="card-t">&#9999;&#65039; Nov artikel (ni v predlogi)</div>
+  <div class="fg"><label>GTIN (14 mest)</label>
+    <input type="text" id="fGtin" maxlength="14" inputmode="numeric" oninput="onGtinEdit()" placeholder="skeniraj ali vpisi"></div>
+  <div class="fg"><label>Naziv *</label><input type="text" id="fName" placeholder="npr. ICT Serum Cals"></div>
   <div class="row">
-    <div class="fg">
-      <label>Tip *</label>
+    <div class="fg"><label>Tip *</label>
       <select id="fType">
         <option value="calibrator">Kalibrator</option>
         <option value="control">Kontrola (QC)</option>
         <option value="reagent-bio">Reagent Bio</option>
         <option value="reagent-imuno">Reagent IMUNO</option>
         <option value="consumable">Potrosni material</option>
-      </select>
-    </div>
-    <div class="fg">
-      <label>Katalo&#353;ka &#353;t. (AI 240)</label>
-      <input type="text" id="fCatalog" maxlength="30" placeholder="samodejno / rocno">
-    </div>
+      </select></div>
+    <div class="fg"><label>Katalo&#353;ka (AI 240)</label><input type="text" id="fCatalog" maxlength="30"></div>
   </div>
   <div class="row">
-    <div class="fg">
-      <label>Ident</label>
-      <input type="text" id="fIdent" maxlength="30" placeholder="interni ident">
-    </div>
-    <div class="fg">
-      <label>Proizvajalec</label>
-      <input type="text" id="fMfr" placeholder="npr. Abbott">
-    </div>
+    <div class="fg"><label>Ident</label><input type="text" id="fIdent" maxlength="30"></div>
+    <div class="fg"><label>Proizvajalec</label><input type="text" id="fMfr" placeholder="Abbott"></div>
   </div>
   <div class="row">
-    <div class="fg">
-      <label>Analizator</label>
-      <input type="text" id="fAnal" placeholder="npr. Alinity c">
-    </div>
-    <div class="fg">
-      <label>Opomba</label>
-      <input type="text" id="fNote" placeholder="poljubno">
-    </div>
+    <div class="fg"><label>Analizator</label><input type="text" id="fAnal" placeholder="Alinity c"></div>
+    <div class="fg"><label>Opomba</label><input type="text" id="fNote"></div>
   </div>
-  <button class="btn btn-green btn-w" onclick="addItem()" id="addBtn">&#10133; Dodaj na seznam</button>
+  <button class="btn btn-green btn-w" onclick="addItem()">&#10133; Dodaj na seznam</button>
 </div>
 
 <!-- SEZNAM -->
@@ -126,24 +149,40 @@ td.g{font-family:var(--mono);font-size:11px;color:var(--accent2)}
   <div class="card-t" style="display:flex;justify-content:space-between;align-items:center">
     <span>&#128203; Seznam</span><span class="cnt" id="cntBadge">0</span>
   </div>
+  <div class="search">
+    <input type="text" id="srch" placeholder="&#128269; Isci po nazivu / identu / kataloski..." oninput="render()">
+  </div>
+  <div class="toolbar" style="margin-bottom:6px">
+    <button class="btn btn-g btn-sm" onclick="setFilter('all')" id="fAll">Vsi</button>
+    <button class="btn btn-g btn-sm" onclick="setFilter('miss')" id="fMiss">&#11036; Brez GTIN</button>
+    <button class="btn btn-g btn-sm" onclick="setFilter('has')" id="fHas">&#9989; Z GTIN</button>
+  </div>
   <table>
-    <thead><tr><th>GTIN</th><th>Naziv</th><th>Tip</th><th></th></tr></thead>
+    <thead><tr><th></th><th>Naziv</th><th>GTIN</th><th>Tip</th><th></th></tr></thead>
     <tbody id="listBody"></tbody>
   </table>
+</div>
+
+<!-- UVOZ -->
+<div class="card">
+  <div class="card-t">&#128229; Uvoz predloge (CSV)</div>
+  <div class="muted" style="margin-bottom:8px">Stolpci: <span style="font-family:var(--mono);color:var(--accent)">gtin,name,type,manufacturer,analyser,note,catalog,ident</span></div>
+  <div class="fg"><label>Nalozi datoteko</label><input type="file" id="impFile" accept=".csv,.txt" onchange="readFile(this)" style="font-size:12px"></div>
+  <div class="fg"><label>ali prilepi CSV</label><textarea id="impTxt" style="min-height:80px;font-family:var(--mono);font-size:11px"></textarea></div>
+  <button class="btn btn-a btn-w" onclick="importText($i('impTxt').value)">&#128229; Uvozi predlogo</button>
 </div>
 
 <!-- IZVOZ -->
 <div class="card">
   <div class="card-t">&#128190; Izvoz CSV</div>
-  <div class="muted" style="margin-bottom:8px">Format: <span style="font-family:var(--mono);color:var(--accent)">gtin,name,type,manufacturer,analyser,note,catalog,ident</span></div>
   <div id="csvOut"></div>
   <div class="row" style="margin-top:10px">
-    <button class="btn btn-a" style="flex:1" onclick="copyCsv()">&#128203; Kopiraj CSV</button>
+    <button class="btn btn-a" style="flex:1" onclick="copyCsv()">&#128203; Kopiraj</button>
     <button class="btn btn-a" style="flex:1" onclick="saveCsvFile()">&#128229; Shrani .csv</button>
   </div>
   <button class="btn btn-d btn-w" style="margin-top:10px" onclick="clearAll()">&#128465;&#65039; Pocisti seznam</button>
   <div class="muted" style="margin-top:10px;line-height:1.5">
-    &#128161; V <b>Pregled BK</b>: zavihek <b>GTIN &rarr; CSV</b> &rarr; prilepi kopirano vsebino ali nalozi shranjeno datoteko.
+    &#128161; V <b>Pregled BK</b>: zavihek <b>GTIN &rarr; CSV</b> &rarr; prilepi ali nalozi. (Vrstice brez GTIN se ob uvozu v Pregled BK preskocijo.)
   </div>
 </div>
 
@@ -154,19 +193,17 @@ function $i(id){return document.getElementById(id);}
 function notify(m,t){var n=$i('notif');n.textContent=m;n.className='notif show '+(t||'');clearTimeout(n._t);n._t=setTimeout(function(){n.className='notif';},1800);}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
-// ===== GTIN VALIDACIJA (check digit) =====
+// ===== GTIN VALIDACIJA =====
 function validGtin(g){
   if(!/^\d{14}$/.test(g))return false;
   var sum=0;for(var i=0;i<13;i++)sum+=parseInt(g[i],10)*(i%2===0?3:1);
-  var chk=(10-(sum%10))%10;
-  return chk===parseInt(g[13],10);
+  return ((10-(sum%10))%10)===parseInt(g[13],10);
 }
 
 // ===== GS1 PARSER (enako kot Pregled BK) =====
 function parseGS1(raw){
   var s=raw.trim();
   var r={raw:raw,gtin:null,lot:null,expiry:null,serial:null,catalog:null};
-  // Oklepajni format (01)GTIN (17)expiry (10)lot (21)serial (240)catalog
   var m01b=s.match(/\(01\)(\d{14})/);
   if(m01b){
     r.gtin=m01b[1];
@@ -176,7 +213,6 @@ function parseGS1(raw){
     var m240b=s.match(/\(240\)([^\(]+)/);if(m240b)r.catalog=m240b[1].trim().slice(0,30);
     return r;
   }
-  // Surovi GS1 format: 01GTIN14 ...
   if(s.startsWith('01') && s.length>=16 && /^\d{16}/.test(s)){
     r.gtin=s.slice(2,16);
     var rest=s.slice(16);var i=0;
@@ -193,114 +229,145 @@ function parseGS1(raw){
     }
     return r;
   }
-  // Goli GTIN
   if(/^\d{14}$/.test(s)){r.gtin=s;return r;}
   if(/^\d{13}$/.test(s)){r.gtin='0'+s;return r;}
   if(/^\d{12}$/.test(s)){r.gtin='00'+s;return r;}
   return r;
 }
 
+// ===== STANJE =====
+var LIST=[];
+var MODE='fill';       // 'fill' | 'add'
+var targetIndex=-1;    // vrstica, ki jo trenutno polnimo
+var FILTER='all';
+var TYPES={calibrator:['Kalibrator','b-cal'],control:['Kontrola (QC)','b-qc'],'reagent-bio':['Reagent Bio','b-rb'],'reagent-imuno':['Reagent IMUNO','b-ri'],consumable:['Potros. mat.','b-co']};
+function loadList(){try{LIST=JSON.parse(localStorage.getItem('gtinPredlogaList')||'[]');}catch(e){LIST=[];}}
+function saveList(){try{localStorage.setItem('gtinPredlogaList',JSON.stringify(LIST));}catch(e){}}
+function nextEmpty(from){for(var i=Math.max(0,from);i<LIST.length;i++){if(!LIST[i].gtin)return i;}return -1;}
+
+// ===== NACIN =====
+function setMode(m){
+  MODE=m;
+  $i('mFill').classList.toggle('on',m==='fill');
+  $i('mAdd').classList.toggle('on',m==='add');
+  $i('fillWrap').classList.toggle('hide',m!=='fill');
+  $i('addCard').classList.toggle('hide',m!=='add');
+  $i('scanHint').textContent = m==='fill'
+    ? 'Skeniraj: GTIN (01) se vpise v izbrano vrstico, kataloska (240) se dopolni.'
+    : 'Skeniraj nov artikel, dopolni naziv/tip in pritisni Dodaj.';
+  if(m==='fill'&&targetIndex<0)targetIndex=nextEmpty(0);
+  render();focusScan();
+}
+function focusScan(){setTimeout(function(){var s=$i('scanInput');if(s)s.focus();},120);}
+
 // ===== OBDELAVA SKENA =====
 function handleScan(code){
   if(!code||code.length<4)return;
   var r=parseGS1(code);
-  if(r.gtin){
+  if(!r.gtin){notify('Iz kode ni mogoce izlusciti GTIN','err');return;}
+  if(MODE==='add'){
     $i('fGtin').value=r.gtin;
     if(r.catalog)$i('fCatalog').value=r.catalog;
-    $i('fGtin').classList.add('flash');setTimeout(function(){$i('fGtin').classList.remove('flash');},500);
-    if(validGtin(r.gtin)){
-      notify('GTIN: '+r.gtin,'ok');
-      // ce ze obstaja, javi
-      if(LIST.some(function(x){return x.gtin===r.gtin;}))notify('Ze na seznamu','warn');
-      $i('fName').focus();
-    } else {
-      notify('GTIN brez veljavne kontrolne st.','warn');
-    }
-  } else {
-    notify('Iz kode ni mogoce izlusciti GTIN','err');
+    if(!validGtin(r.gtin))notify('GTIN brez veljavne kontrolne st.','warn');
+    else notify('GTIN: '+r.gtin,'ok');
+    $i('fName').focus();
+    return;
   }
+  // FILL nacin
+  if(!LIST.length){notify('Najprej uvozi predlogo','warn');return;}
+  if(!validGtin(r.gtin)){notify('Neveljavna GTIN kontrolna st. ('+r.gtin+')','err');return;}
+  var t=(targetIndex>=0&&targetIndex<LIST.length)?targetIndex:nextEmpty(0);
+  if(t<0){notify('Vse vrstice ze imajo GTIN','ok');return;}
+  // duplikat?
+  var dup=-1;for(var k=0;k<LIST.length;k++){if(k!==t&&LIST[k].gtin===r.gtin){dup=k;break;}}
+  if(dup>=0){notify('GTIN ze obstaja: '+LIST[dup].name,'warn');return;}
+  LIST[t].gtin=r.gtin;
+  if(r.catalog&&!LIST[t].catalog)LIST[t].catalog=r.catalog;
+  saveList();
+  notify('✔ '+(LIST[t].name||r.gtin),'ok');
+  targetIndex=nextEmpty(t+1);
+  if(targetIndex<0)targetIndex=nextEmpty(0);
+  render();focusScan();
 }
 
-// ===== DATAWEDGE HID INPUT (keystroke, konec z Enter) =====
-var hidBuf='';var hidTmr=null;
-document.addEventListener('keydown',function(e){
-  var ael=document.activeElement;var tag=ael?ael.tagName:'';
-  // ce uporabnik tipka v polje (razen scanInput), ne lovi
-  if((tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')&&!(ael&&ael.id==='scanInput'))return;
-  if(ael&&ael.id==='scanInput')return; // scanInput ima svoj handler
-  if(e.keyCode===13||e.keyCode===10||e.key==='Enter'){
-    clearTimeout(hidTmr);
-    if(hidBuf.length>=4){var code=hidBuf.trim();hidBuf='';handleScan(code);}
-    else hidBuf='';
-    e.preventDefault();return;
-  }
-  if(e.keyCode===29){hidBuf+='\x1d';e.preventDefault();return;} // GS / FNC1
-  if(e.key&&e.key.length===1&&e.keyCode!==10){
-    hidBuf+=e.key;clearTimeout(hidTmr);
-    hidTmr=setTimeout(function(){if(hidBuf.length>=8){var c=hidBuf.trim();hidBuf='';handleScan(c);}else hidBuf='';},300);
-  }
-});
+// ===== TARCA =====
+function setTarget(i){if(i<0||i>=LIST.length)return;MODE='fill';setMode('fill');targetIndex=i;render();focusScan();}
+function skipTarget(){var from=(targetIndex>=0?targetIndex+1:0);var n=nextEmpty(from);if(n<0)n=nextEmpty(0);targetIndex=n;render();focusScan();}
+function clearTargetGtin(){if(targetIndex<0||targetIndex>=LIST.length)return;if(!LIST[targetIndex].gtin){notify('Ta vrstica nima GTIN','warn');return;}LIST[targetIndex].gtin='';saveList();render();notify('GTIN pocisten');}
 
-// scanInput fallback (rocni vnos / lepljenje)
-var scanTmr=null;
-function onScanInput(){
-  var inp=$i('scanInput');if(!inp)return;
-  clearTimeout(scanTmr);
-  if(inp.value.trim().length>=4){
-    scanTmr=setTimeout(function(){var v=inp.value.trim();handleScan(v);inp.value='';},250);
+function renderTarget(){
+  var el=$i('target');
+  if(!LIST.length){el.innerHTML='<div class="muted">Predloga je prazna. Uvozi CSV spodaj ali preklopi na <b>Dodaj nov</b>.</div>';el.className='';return;}
+  if(targetIndex<0||targetIndex>=LIST.length||LIST[targetIndex].gtin){
+    var n=nextEmpty(0);
+    if(n<0){el.className='done';el.innerHTML='<div class="tname">&#127881; Vse vrstice imajo GTIN</div><div class="tmeta">Lahko izvozis CSV.</div>';return;}
+    targetIndex=n;
   }
+  var it=LIST[targetIndex];var ty=TYPES[it.type]||['?','b-co'];
+  el.className='';
+  el.innerHTML='<div class="muted">Trenutna vrstica ('+(targetIndex+1)+'/'+LIST.length+')</div>'+
+    '<div class="tname">'+esc(it.name)+'</div>'+
+    '<div class="tmeta">'+
+      '<span class="badge '+ty[1]+'">'+ty[0]+'</span> &nbsp; '+
+      (it.ident?('ident: '+esc(it.ident)+' &nbsp; '):'')+
+      (it.catalog?('katal.: '+esc(it.catalog)):'')+
+    '</div>';
 }
-function onScanKey(e){
-  if(e.keyCode===13||e.key==='Enter'){
-    var inp=$i('scanInput');var v=inp.value.trim();inp.value='';
-    if(v.length>=4)handleScan(v);
-    e.preventDefault();
-  }
-}
+
+// ===== ADD (nov artikel) =====
+function clearForm(){['fGtin','fName','fCatalog','fIdent','fMfr','fNote'].forEach(function(id){var e=$i(id);if(e)e.value='';});}
 function onGtinEdit(){$i('fGtin').value=$i('fGtin').value.replace(/\D/g,'').slice(0,14);}
-
-// ===== SEZNAM =====
-var LIST=[];
-var TYPES={calibrator:['Kalibrator','b-cal'],control:['Kontrola (QC)','b-qc'],'reagent-bio':['Reagent Bio','b-rb'],'reagent-imuno':['Reagent IMUNO','b-ri'],consumable:['Potros. mat.','b-co']};
-function loadList(){try{LIST=JSON.parse(localStorage.getItem('gtinPredlogaList')||'[]');}catch(e){LIST=[];}}
-function saveList(){try{localStorage.setItem('gtinPredlogaList',JSON.stringify(LIST));}catch(e){}}
-
 function addItem(){
   var gtin=$i('fGtin').value.trim().replace(/\D/g,'');
   var name=$i('fName').value.trim();
   if(!gtin){notify('Skeniraj ali vpisi GTIN','warn');return;}
-  if(gtin.length!==14){notify('GTIN mora biti 14 mest','warn');return;}
-  if(!validGtin(gtin)){notify('Neveljavna GTIN kontrolna st.','warn');return;}
+  if(gtin.length!==14||!validGtin(gtin)){notify('Neveljaven GTIN','warn');return;}
   if(!name){notify('Vpisi naziv','warn');$i('fName').focus();return;}
   if(LIST.some(function(x){return x.gtin===gtin;})){notify('GTIN ze na seznamu','warn');return;}
-  LIST.push({
-    gtin:gtin,name:name,type:$i('fType').value,
-    manufacturer:$i('fMfr').value.trim(),analyser:$i('fAnal').value.trim(),
-    note:$i('fNote').value.trim(),catalog:$i('fCatalog').value.trim(),ident:$i('fIdent').value.trim()
-  });
-  saveList();render();notify('Dodano ('+LIST.length+')','ok');
-  clearForm();$i('scanInput').focus();
+  LIST.push({gtin:gtin,name:name,type:$i('fType').value,manufacturer:$i('fMfr').value.trim(),analyser:$i('fAnal').value.trim(),note:$i('fNote').value.trim(),catalog:$i('fCatalog').value.trim(),ident:$i('fIdent').value.trim()});
+  saveList();render();notify('Dodano ('+LIST.length+')','ok');clearForm();focusScan();
 }
-function clearForm(){
-  ['fGtin','fName','fCatalog','fIdent','fMfr','fNote'].forEach(function(id){$i(id).value='';});
-  // tip pustimo izbran za hitrejse zaporedno skeniranje istega tipa
-}
-function delItem(i){LIST.splice(i,1);saveList();render();notify('Izbrisano');}
-function clearAll(){if(!LIST.length)return;if(!confirm('Pocistiti cel seznam ('+LIST.length+')?'))return;LIST=[];saveList();render();notify('Seznam pocisten');}
+function delItem(i,ev){if(ev)ev.stopPropagation();if(!confirm('Izbrisati vrstico?'))return;LIST.splice(i,1);if(targetIndex>=LIST.length)targetIndex=nextEmpty(0);saveList();render();notify('Izbrisano');}
+function clearAll(){if(!LIST.length)return;if(!confirm('Pocistiti cel seznam ('+LIST.length+')?'))return;LIST=[];targetIndex=-1;saveList();render();notify('Seznam pocisten');}
 
+// ===== FILTER / ISKANJE =====
+function setFilter(f){FILTER=f;['fAll','fMiss','fHas'].forEach(function(id){$i(id).classList.remove('on');});$i(f==='all'?'fAll':f==='miss'?'fMiss':'fHas').classList.add('on');render();}
+
+// ===== RENDER =====
 function render(){
-  $i('cntBadge').textContent=LIST.length;
+  var total=LIST.length,filled=LIST.filter(function(x){return x.gtin;}).length;
+  $i('cntBadge').textContent=total;
+  $i('pFilled').textContent=filled;$i('pTotal').textContent=total;
+  $i('pBar').style.width=(total?Math.round(filled/total*100):0)+'%';
+  $i('pLeft').textContent=total?('se '+(total-filled)+' brez GTIN'):'';
+  renderTarget();
+  // seznam
+  var q=($i('srch').value||'').toLowerCase().trim();
   var tb=$i('listBody');
-  if(!LIST.length){tb.innerHTML='<tr><td colspan="4" class="empty">Se ni vnosov. Skeniraj prvi reagent.</td></tr>';$i('csvOut').textContent='';return;}
-  tb.innerHTML=LIST.map(function(it,i){
-    var ty=TYPES[it.type]||['?','b-co'];
-    return '<tr>'+
-      '<td class="g">'+esc(it.gtin)+'</td>'+
-      '<td>'+esc(it.name)+(it.catalog?'<br><span class="muted">'+esc(it.catalog)+'</span>':'')+'</td>'+
-      '<td><span class="badge '+ty[1]+'">'+ty[0]+'</span></td>'+
-      '<td style="text-align:right"><button class="btn btn-d btn-sm" onclick="delItem('+i+')">&#128465;</button></td>'+
-    '</tr>';
-  }).join('');
+  var rows=[];
+  for(var i=0;i<LIST.length;i++){
+    var it=LIST[i];
+    if(FILTER==='miss'&&it.gtin)continue;
+    if(FILTER==='has'&&!it.gtin)continue;
+    if(q){var hay=((it.name||'')+' '+(it.ident||'')+' '+(it.catalog||'')).toLowerCase();if(hay.indexOf(q)<0)continue;}
+    rows.push(i);
+  }
+  if(!total){tb.innerHTML='<tr><td colspan="5" class="empty">Predloga je prazna. Uvozi CSV spodaj.</td></tr>';$i('csvOut').textContent='';return;}
+  if(!rows.length){tb.innerHTML='<tr><td colspan="5" class="empty">Ni zadetkov za filter/iskanje.</td></tr>';}
+  else{
+    tb.innerHTML=rows.map(function(i){
+      var it=LIST[i];var ty=TYPES[it.type]||['?','b-co'];
+      var mk=it.gtin?'<span class="mk" style="color:var(--green)">&#9989;</span>':'<span class="mk" style="color:var(--text3)">&#11036;</span>';
+      var tgt=(i===targetIndex)?' tgt':'';
+      return '<tr class="trow'+tgt+'" onclick="setTarget('+i+')">'+
+        '<td>'+mk+'</td>'+
+        '<td>'+esc(it.name)+(it.ident?'<br><span class="muted">id: '+esc(it.ident)+'</span>':'')+'</td>'+
+        '<td class="g" style="color:'+(it.gtin?'var(--accent2)':'var(--text3)')+'">'+(it.gtin?esc(it.gtin):'&mdash;')+'</td>'+
+        '<td><span class="badge '+ty[1]+'">'+ty[0]+'</span></td>'+
+        '<td style="text-align:right"><button class="btn btn-d btn-sm" onclick="delItem('+i+',event)">&#128465;</button></td>'+
+      '</tr>';
+    }).join('');
+  }
   $i('csvOut').textContent=buildCsv();
 }
 
@@ -308,38 +375,80 @@ function render(){
 function csvCell(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 function buildCsv(){
   var rows=['gtin,name,type,manufacturer,analyser,note,catalog,ident'];
-  LIST.forEach(function(it){
-    rows.push([it.gtin,it.name,it.type,it.manufacturer,it.analyser,it.note,it.catalog,it.ident].map(csvCell).join(','));
-  });
+  LIST.forEach(function(it){rows.push([it.gtin,it.name,it.type,it.manufacturer,it.analyser,it.note,it.catalog,it.ident].map(csvCell).join(','));});
   return rows.join('\n');
 }
+function parseCsvLine(line){
+  var out=[],cur='',q=false;
+  for(var i=0;i<line.length;i++){var c=line[i];
+    if(q){if(c==='"'){if(line[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=c;}
+    else{if(c==='"')q=true;else if(c===','){out.push(cur);cur='';}else cur+=c;}
+  }
+  out.push(cur);return out.map(function(x){return x.trim();});
+}
+function importText(txt){
+  if(!txt||!txt.trim()){notify('Ni vsebine za uvoz','warn');return;}
+  var lines=txt.replace(/\r/g,'').split('\n').filter(function(l){return l.trim();});
+  var items=[],bad=0;
+  lines.forEach(function(line){
+    if(/^\s*gtin\s*,/i.test(line))return; // glava
+    var p=parseCsvLine(line);
+    var name=p[1]||'';var ident=p[7]||'';
+    if(!name&&!ident){bad++;return;}
+    var g=(p[0]||'').replace(/\D/g,'');
+    if(g.length!==14||!validGtin(g))g='';
+    items.push({gtin:g,name:name,type:p[2]||'consumable',manufacturer:p[3]||'',analyser:p[4]||'',note:p[5]||'',catalog:p[6]||'',ident:ident});
+  });
+  if(!items.length){notify('Ni veljavnih vrstic','err');return;}
+  if(LIST.length && !confirm('Seznam ni prazen ('+LIST.length+'). Zamenjati z uvozenimi '+items.length+' vrsticami?'))return;
+  LIST=items;targetIndex=nextEmpty(0);$i('impTxt').value='';
+  saveList();setMode('fill');render();
+  var withG=items.filter(function(x){return x.gtin;}).length;
+  notify('Uvozeno '+items.length+' (z GTIN: '+withG+')'+(bad?', preskoceno '+bad:''),'ok');
+}
+function readFile(input){var f=input.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(e){$i('impTxt').value=e.target.result;importText(e.target.result);};rd.readAsText(f);}
+
 function copyCsv(){
   if(!LIST.length){notify('Seznam je prazen','warn');return;}
   var csv=buildCsv();
-  if(typeof AndroidBridge!=='undefined'&&AndroidBridge.copyToClipboard){
-    if(AndroidBridge.copyToClipboard(csv)){notify('CSV kopiran','ok');return;}
-  }
-  try{navigator.clipboard.writeText(csv);notify('CSV kopiran','ok');}
-  catch(e){notify('Kopiranje ni uspelo - oznaci besedilo rocno','err');}
+  if(typeof AndroidBridge!=='undefined'&&AndroidBridge.copyToClipboard){if(AndroidBridge.copyToClipboard(csv)){notify('CSV kopiran','ok');return;}}
+  try{navigator.clipboard.writeText(csv);notify('CSV kopiran','ok');}catch(e){notify('Kopiranje ni uspelo','err');}
 }
 function saveCsvFile(){
   if(!LIST.length){notify('Seznam je prazen','warn');return;}
-  var csv=buildCsv();
-  var fn='GTIN_'+new Date().toISOString().slice(0,10)+'.csv';
-  if(typeof AndroidBridge!=='undefined'&&AndroidBridge.saveCsv){
-    var res=AndroidBridge.saveCsv(fn,csv);
-    if(res&&res!=='ERR')notify('Shranjeno: '+res,'ok');
-    else notify('Shranjevanje ni uspelo','err');
-    return;
-  }
-  // brskalnik fallback
-  try{var b=new Blob(['﻿'+csv],{type:'text/csv'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=fn;a.click();notify('Prenos sprozen','ok');}
-  catch(e){notify('Shranjevanje ni uspelo','err');}
+  var csv=buildCsv();var fn='GTIN_predloga_'+new Date().toISOString().slice(0,10)+'.csv';
+  if(typeof AndroidBridge!=='undefined'&&AndroidBridge.saveCsv){var res=AndroidBridge.saveCsv(fn,csv);if(res&&res!=='ERR')notify('Shranjeno: '+res,'ok');else notify('Shranjevanje ni uspelo','err');return;}
+  try{var b=new Blob(['﻿'+csv],{type:'text/csv'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=fn;a.click();notify('Prenos sprozen','ok');}catch(e){notify('Shranjevanje ni uspelo','err');}
 }
 
+// ===== DATAWEDGE HID INPUT =====
+var hidBuf='';var hidTmr=null;
+document.addEventListener('keydown',function(e){
+  var ael=document.activeElement;var tag=ael?ael.tagName:'';
+  if((tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')&&!(ael&&ael.id==='scanInput'))return;
+  if(ael&&ael.id==='scanInput')return;
+  if(e.keyCode===13||e.keyCode===10||e.key==='Enter'){
+    clearTimeout(hidTmr);
+    if(hidBuf.length>=4){var code=hidBuf.trim();hidBuf='';handleScan(code);}else hidBuf='';
+    e.preventDefault();return;
+  }
+  if(e.keyCode===29){hidBuf+='\x1d';e.preventDefault();return;}
+  if(e.key&&e.key.length===1&&e.keyCode!==10){
+    hidBuf+=e.key;clearTimeout(hidTmr);
+    hidTmr=setTimeout(function(){if(hidBuf.length>=8){var c=hidBuf.trim();hidBuf='';handleScan(c);}else hidBuf='';},300);
+  }
+});
+var scanTmr=null;
+function onScanInput(){var inp=$i('scanInput');if(!inp)return;clearTimeout(scanTmr);if(inp.value.trim().length>=4){scanTmr=setTimeout(function(){var v=inp.value.trim();handleScan(v);inp.value='';},250);}}
+function onScanKey(e){if(e.keyCode===13||e.key==='Enter'){var inp=$i('scanInput');var v=inp.value.trim();inp.value='';if(v.length>=4)handleScan(v);e.preventDefault();}}
+
 // ===== BOOT =====
-loadList();render();
-setTimeout(function(){$i('scanInput').focus();},300);
+loadList();
+targetIndex=nextEmpty(0);
+setFilter('all');
+setMode('fill');
+render();
+focusScan();
 </script>
 </body>
 </html>
