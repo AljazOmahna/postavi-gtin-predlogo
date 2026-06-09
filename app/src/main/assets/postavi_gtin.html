@@ -255,7 +255,7 @@ function setMode(m){
   $i('fillWrap').classList.toggle('hide',m!=='fill');
   $i('addCard').classList.toggle('hide',m!=='add');
   $i('scanHint').textContent = m==='fill'
-    ? 'Skeniraj SGTIN: po kataloski (240) najde artikel in vpise GTIN (01). Brez 240 polni izbrano vrstico.'
+    ? 'Skeniraj SGTIN: samo ce se kataloska (240) ujema z artiklom, se vpise GTIN (01). Sicer: poskusi ponovno.'
     : 'Skeniraj nov artikel, dopolni naziv/tip in pritisni Dodaj.';
   if(m==='fill'&&targetIndex<0)targetIndex=nextEmpty(0);
   render();focusScan();
@@ -312,18 +312,16 @@ function handleScan(code){
       if(m.length>1)notify('Vec artiklov z isto kataloska ('+m.length+')','warn');
     }
   }
-  // brez 240 ali brez zadetka -> fallback na izbrano/naslednjo vrstico
-  var matchedByCat=(t>=0);
+  // STROGO: brez ujemajoce kataloske (240) NE polni nicesar
   if(t<0){
-    if(r.catalog){
-      // 240 obstaja a ga ni v predlogi -> NE ugibaj, javi
-      setLastScan(info+' &mdash; <b>kataloska ni v predlogi</b>','err');
-      notify('Kataloska '+r.catalog+' ni v predlogi','err');
-      return;
+    if(!r.catalog){
+      setLastScan(info+' &mdash; <b>koda nima kataloske (240)</b> &mdash; poskusi ponovno','err');
+      notify('Koda nima kataloske (240) — poskusi ponovno','err');
+    } else {
+      setLastScan(info+' &mdash; <b>kataloska se ne ujema</b> &mdash; poskusi ponovno','err');
+      notify('Kataloska '+r.catalog+' ni v predlogi — poskusi ponovno','err');
     }
-    // ni 240: napolni trenutno izbrano/naslednjo prazno
-    t=(targetIndex>=0&&targetIndex<LIST.length&&!LIST[targetIndex].gtin)?targetIndex:nextEmpty(0);
-    if(t<0){setLastScan(info+' &mdash; vse vrstice ze imajo GTIN','warn');notify('Vse ze imajo GTIN','ok');return;}
+    return;
   }
 
   // ce je isti GTIN ze drugje (ne na tej vrstici)
@@ -337,7 +335,7 @@ function handleScan(code){
   LIST[t].gtin=r.gtin;
   if(r.catalog&&!LIST[t].catalog)LIST[t].catalog=r.catalog;
   saveList();
-  setLastScan(info+' &rarr; <b style="color:var(--green)">'+esc(LIST[t].name)+'</b>'+(matchedByCat?' (po kataloski)':' (izbrana vrstica)'),'ok');
+  setLastScan(info+' &rarr; <b style="color:var(--green)">'+esc(LIST[t].name)+'</b> (po kataloski)','ok');
   notify('✔ '+(LIST[t].name||r.gtin),'ok');
   targetIndex=nextEmpty(0);
   render();focusScan();
