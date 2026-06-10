@@ -49,6 +49,7 @@ body{padding:0 12px 90px}
 #target .tname{font-size:16px;font-weight:800;color:var(--text)}
 #target .tmeta{font-size:11px;color:var(--text3);margin-top:4px}
 #target.done{border-color:var(--green)}
+#target.manual{border-color:var(--accent);border-width:2px;background:rgba(56,189,248,.08)}
 table{width:100%;border-collapse:collapse;margin-top:6px}
 th,td{text-align:left;padding:7px 6px;font-size:12px;border-bottom:1px solid var(--border);vertical-align:top}
 th{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);font-weight:700}
@@ -241,6 +242,7 @@ function parseGS1(raw){
 var LIST=[];
 var MODE='fill';       // 'fill' | 'add'
 var targetIndex=-1;    // vrstica, ki jo trenutno polnimo
+var targetManual=false; // true = user kliknil vrstico → direktni vpis brez kataloškega ujemanja
 var FILTER='all';
 var TYPES={calibrator:['Kalibrator','b-cal'],control:['Kontrola (QC)','b-qc'],'reagent-bio':['Reagent Bio','b-rb'],'reagent-imuno':['Reagent IMUNO','b-ri'],consumable:['Potros. mat.','b-co']};
 function loadList(){try{LIST=JSON.parse(localStorage.getItem('gtinPredlogaList')||'[]');}catch(e){LIST=[];}}
@@ -248,16 +250,28 @@ function saveList(){try{localStorage.setItem('gtinPredlogaList',JSON.stringify(L
 function nextEmpty(from){for(var i=Math.max(0,from);i<LIST.length;i++){if(!LIST[i].gtin)return i;}return -1;}
 
 // ===== NACIN =====
+function updateScanHint(){
+  var h=$i('scanHint');if(!h)return;
+  if(MODE==='fill'&&targetManual&&targetIndex>=0&&targetIndex<LIST.length){
+    h.innerHTML='&#128204; <b>Direktni vpis</b> &rarr; '+esc(LIST[targetIndex].name)+' &mdash; skeniraj za vpis GTIN (brez kataloškega ujemanja)';
+    h.style.color='var(--accent)';
+  } else if(MODE==='fill'){
+    h.innerHTML='Skeniraj SGTIN: ujemanje po kataloski (240). <b>Klikni vrstico</b> za direktni vpis.';
+    h.style.color='';
+  } else {
+    h.innerHTML='Skeniraj nov artikel, dopolni naziv/tip in pritisni Dodaj.';
+    h.style.color='';
+  }
+}
 function setMode(m){
   MODE=m;
+  targetManual=false;
   $i('mFill').classList.toggle('on',m==='fill');
   $i('mAdd').classList.toggle('on',m==='add');
   $i('fillWrap').classList.toggle('hide',m!=='fill');
   $i('addCard').classList.toggle('hide',m!=='add');
-  $i('scanHint').textContent = m==='fill'
-    ? 'Skeniraj SGTIN: samo ce se kataloska (240) ujema z artiklom, se vpise GTIN (01). Sicer: poskusi ponovno.'
-    : 'Skeniraj nov artikel, dopolni naziv/tip in pritisni Dodaj.';
   if(m==='fill'&&targetIndex<0)targetIndex=nextEmpty(0);
+  updateScanHint();
   render();focusScan();
 }
 function focusScan(){setTimeout(function(){var s=$i('scanInput');if(s)s.focus();},120);}
@@ -303,6 +317,27 @@ function handleScan(code){
   // duplikat GTIN (ze vpisan drugje)?
   var dupG=-1;for(var k=0;k<LIST.length;k++){if(LIST[k].gtin===r.gtin){dupG=k;break;}}
 
+  // ===== DIREKTNI VPIS: user je kliknil vrstico =====
+  if(targetManual&&targetIndex>=0&&targetIndex<LIST.length){
+    var tgt=LIST[targetIndex];
+    if(dupG>=0&&dupG!==targetIndex){
+      setLastScan(info+' &mdash; GTIN &#382;e vpisan pri: '+esc(LIST[dupG].name),'warn');
+      notify('GTIN že obstaja: '+LIST[dupG].name,'warn');return;
+    }
+    if(tgt.gtin&&tgt.gtin!==r.gtin){
+      if(!confirm('"'+tgt.name+'" že ima GTIN '+tgt.gtin+'. Zamenjati z '+r.gtin+'?'))return;
+    }
+    tgt.gtin=r.gtin;
+    if(r.catalog&&!tgt.catalog)tgt.catalog=r.catalog;
+    saveList();
+    setLastScan(info+' &rarr; <b style="color:var(--green)">'+esc(tgt.name)+'</b> &#128204; direktni vpis','ok');
+    notify('✔ '+tgt.name,'ok');
+    targetManual=false;
+    targetIndex=nextEmpty(0);
+    updateScanHint();render();focusScan();
+    return;
+  }
+
   var t=-1;
   if(r.catalog){
     var m=findByCatalog(r.catalog);
@@ -315,21 +350,21 @@ function handleScan(code){
   // STROGO: brez ujemajoce kataloske (240) NE polni nicesar
   if(t<0){
     if(!r.catalog){
-      setLastScan(info+' &mdash; <b>koda nima kataloske (240)</b> &mdash; poskusi ponovno','err');
-      notify('Koda nima kataloske (240) — poskusi ponovno','err');
+      setLastScan(info+' &mdash; <b>koda nima kataloske (240)</b> &mdash; klikni vrstico za direktni vpis','err');
+      notify('Koda nima kataloške (240) — klikni vrstico za direktni vpis','err');
     } else {
-      setLastScan(info+' &mdash; <b>kataloska se ne ujema</b> &mdash; poskusi ponovno','err');
-      notify('Kataloska '+r.catalog+' ni v predlogi — poskusi ponovno','err');
+      setLastScan(info+' &mdash; <b>katalošk se ne ujema</b> &mdash; klikni vrstico za direktni vpis','err');
+      notify('Kataloška '+r.catalog+' ni v predlogi — klikni vrstico za direktni vpis','err');
     }
     return;
   }
 
   // ce je isti GTIN ze drugje (ne na tej vrstici)
-  if(dupG>=0 && dupG!==t){setLastScan(info+' &mdash; GTIN ze vpisan pri: '+esc(LIST[dupG].name),'warn');notify('GTIN ze obstaja: '+LIST[dupG].name,'warn');return;}
+  if(dupG>=0&&dupG!==t){setLastScan(info+' &mdash; GTIN &#382;e vpisan pri: '+esc(LIST[dupG].name),'warn');notify('GTIN že obstaja: '+LIST[dupG].name,'warn');return;}
 
   // ce vrstica ze ima drugacen GTIN -> potrdi zamenjavo
-  if(LIST[t].gtin && LIST[t].gtin!==r.gtin){
-    if(!confirm('"'+LIST[t].name+'" ze ima GTIN '+LIST[t].gtin+'. Zamenjati z '+r.gtin+'?')){return;}
+  if(LIST[t].gtin&&LIST[t].gtin!==r.gtin){
+    if(!confirm('"'+LIST[t].name+'" že ima GTIN '+LIST[t].gtin+'. Zamenjati z '+r.gtin+'?'))return;
   }
 
   LIST[t].gtin=r.gtin;
@@ -338,12 +373,27 @@ function handleScan(code){
   setLastScan(info+' &rarr; <b style="color:var(--green)">'+esc(LIST[t].name)+'</b> (po kataloski)','ok');
   notify('✔ '+(LIST[t].name||r.gtin),'ok');
   targetIndex=nextEmpty(0);
-  render();focusScan();
+  targetManual=false;
+  updateScanHint();render();focusScan();
 }
 
 // ===== TARCA =====
-function setTarget(i){if(i<0||i>=LIST.length)return;MODE='fill';setMode('fill');targetIndex=i;render();focusScan();}
-function skipTarget(){var from=(targetIndex>=0?targetIndex+1:0);var n=nextEmpty(from);if(n<0)n=nextEmpty(0);targetIndex=n;render();focusScan();}
+function setTarget(i){
+  if(i<0||i>=LIST.length)return;
+  if(MODE!=='fill'){MODE='fill';$i('mFill').classList.add('on');$i('mAdd').classList.remove('on');$i('fillWrap').classList.remove('hide');$i('addCard').classList.add('hide');}
+  targetIndex=i;
+  targetManual=true;  // direktni vpis brez kataloškega ujemanja
+  updateScanHint();
+  // scroll na vrh (kjer je scan input + target panel)
+  window.scrollTo({top:0,behavior:'smooth'});
+  render();focusScan();
+}
+function skipTarget(){
+  var from=(targetIndex>=0?targetIndex+1:0);
+  var n=nextEmpty(from);if(n<0)n=nextEmpty(0);
+  targetIndex=n;targetManual=false;
+  updateScanHint();render();focusScan();
+}
 function clearTargetGtin(){if(targetIndex<0||targetIndex>=LIST.length)return;if(!LIST[targetIndex].gtin){notify('Ta vrstica nima GTIN','warn');return;}LIST[targetIndex].gtin='';saveList();render();notify('GTIN pocisten');}
 
 function renderTarget(){
@@ -355,8 +405,11 @@ function renderTarget(){
     targetIndex=n;
   }
   var it=LIST[targetIndex];var ty=TYPES[it.type]||['?','b-co'];
-  el.className='';
-  el.innerHTML='<div class="muted">Trenutna vrstica ('+(targetIndex+1)+'/'+LIST.length+')</div>'+
+  el.className=targetManual?'manual':'';
+  el.innerHTML=
+    (targetManual
+      ? '<div style="font-size:10px;font-weight:700;color:var(--accent);margin-bottom:4px">&#128204; DIREKTNI VPIS &mdash; skeniraj za vpis GTIN</div>'
+      : '<div class="muted">Trenutna vrstica ('+(targetIndex+1)+'/'+LIST.length+')</div>')+
     '<div class="tname">'+esc(it.name)+'</div>'+
     '<div class="tmeta">'+
       '<span class="badge '+ty[1]+'">'+ty[0]+'</span> &nbsp; '+
@@ -504,6 +557,7 @@ loadList();
 targetIndex=nextEmpty(0);
 setFilter('all');
 setMode('fill');
+updateScanHint();
 render();
 focusScan();
 </script>
