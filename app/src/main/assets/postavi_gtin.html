@@ -168,7 +168,8 @@ tr.trow.tgt{background:rgba(56,189,248,.14)}
 <!-- UVOZ -->
 <div class="card">
   <div class="card-t">&#128229; Uvoz predloge (CSV)</div>
-  <button class="btn btn-green btn-w" style="margin-bottom:10px" onclick="loadFromDevice()">&#128229; Nalozi predlogo iz naprave</button>
+  <button class="btn btn-green btn-w" style="margin-bottom:10px" onclick="loadBuiltin()">&#9733; Nalo&#382;i privzeto predlogo (KCLJ)</button>
+  <button class="btn btn-g btn-w" style="margin-bottom:10px" onclick="loadFromDevice()">&#128229; Nalo&#382;i predlogo iz naprave</button>
   <div class="muted" style="margin-bottom:8px">Stolpci: <span style="font-family:var(--mono);color:var(--accent)">gtin,name,type,manufacturer,analyser,note,catalog,ident</span></div>
   <div class="fg"><label>ali izberi datoteko</label><input type="file" id="impFile" accept=".csv,.txt" onchange="readFile(this)" style="font-size:12px"></div>
   <div class="fg"><label>ali prilepi CSV</label><textarea id="impTxt" style="min-height:80px;font-family:var(--mono);font-size:11px"></textarea></div>
@@ -551,6 +552,102 @@ document.addEventListener('keydown',function(e){
 var scanTmr=null;
 function onScanInput(){var inp=$i('scanInput');if(!inp)return;clearTimeout(scanTmr);if(inp.value.trim().length>=4){scanTmr=setTimeout(function(){var v=inp.value.trim();handleScan(v);inp.value='';},250);}}
 function onScanKey(e){if(e.keyCode===13||e.key==='Enter'){var inp=$i('scanInput');var v=inp.value.trim();inp.value='';if(v.length>=4)handleScan(v);e.preventDefault();}}
+
+// ===== VGRAJENA PREDLOGA KCLJ =====
+// Vir: BUILTIN_GTINS + RECOGNITION_GTINS iz Pregled BK + QC materiali iz BIO Alinity
+// Artikli brez GTIN imajo prazen gtin:'', kar pomeni da jih je treba skenirati
+var BUILTIN_TEMPLATE = [
+  // --- KALIBRATORJI (Abbott Diagnostics) ---
+  {gtin:'00380740121693',name:'ICT Serum Cals',         type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740121709',name:'ICT Urine Cals',         type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740154325',name:'Lipid MC Cal',           type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740136260',name:'UIBC Cal',               type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740180935',name:'TDM MC Cal',             type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'Terapevtski monitoring',catalog:'',ident:''},
+  {gtin:'00380740164980',name:'ConCC',                  type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'Connectivity Cal',catalog:'',ident:''},
+  {gtin:'00380740121969',name:'MC Cals',                type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'Multi-calibrator',catalog:'',ident:''},
+  {gtin:'00380740130077',name:'CRP WR Cals',            type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740135355',name:'Ethanol Cals',           type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740121617',name:'CO2 Cals',               type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740154295',name:'Clin Chem Cal',          type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740135157',name:'U/CSF Prot Cals',        type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740190774',name:'Microalb Cals',          type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'Mikroalbuminski kalibrator',catalog:'',ident:''},
+  {gtin:'00380740204037',name:'Lip2 Cal',               type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'Lipaza 2',catalog:'',ident:''},
+  {gtin:'00380740194857',name:'GFAP Cals',              type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity i',note:'',catalog:'',ident:''},
+  {gtin:'00380740194871',name:'UCH-L1 Cals',            type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity i',note:'',catalog:'',ident:''},
+  {gtin:'00380740131456',name:'Ferritin Cals',          type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity i',note:'',catalog:'',ident:''},
+  {gtin:'00380740121488',name:'Beta-HCG Cals',          type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity i',note:'',catalog:'',ident:''},
+  {gtin:'00380740172275',name:'Myo STAT Cals',          type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity i',note:'Mioglobin',catalog:'',ident:''},
+  {gtin:'00380740153939',name:'PCT Cals',               type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity i',note:'',catalog:'',ident:''},
+  {gtin:'00380740165482',name:'CK-MB STAT Cals',        type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity i',note:'',catalog:'',ident:''},
+  {gtin:'00380740130718',name:'hsTnI STAT Cals',        type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity i',note:'Troponin I',catalog:'',ident:''},
+  {gtin:'05055845400534',name:'Alere NT-proBNP Cals',   type:'calibrator',manufacturer:'Abbott Diagnostics',analyser:'Alinity i',note:'NT-proBNP',catalog:'',ident:''},
+  // --- KONTROLE — Abbott ---
+  {gtin:'00380740194864',name:'GFAP Ctrls',             type:'control',manufacturer:'Abbott Diagnostics',analyser:'Alinity i',note:'',catalog:'',ident:''},
+  {gtin:'00380740194888',name:'UCH-L1 Ctrls',           type:'control',manufacturer:'Abbott Diagnostics',analyser:'Alinity i',note:'',catalog:'',ident:''},
+  {gtin:'00380740153946',name:'PCT Ctrls',              type:'control',manufacturer:'Abbott Diagnostics',analyser:'Alinity i',note:'',catalog:'',ident:''},
+  // --- KONTROLE — Technopath ---
+  {gtin:'05391523440776',name:'Multichem S Plus L1',    type:'control',manufacturer:'Technopath',analyser:'Alinity c',note:'Biokemija nivo 1',catalog:'',ident:''},
+  {gtin:'05391523440783',name:'Multichem S Plus L2',    type:'control',manufacturer:'Technopath',analyser:'Alinity c',note:'Biokemija nivo 2',catalog:'',ident:''},
+  {gtin:'05391523440790',name:'Multichem S Plus L3',    type:'control',manufacturer:'Technopath',analyser:'Alinity c',note:'Biokemija nivo 3',catalog:'',ident:''},
+  {gtin:'05391523440745',name:'Multichem IA Plus',      type:'control',manufacturer:'Technopath',analyser:'Alinity i',note:'Imunologija',catalog:'',ident:''},
+  {gtin:'05391523440752',name:'Multichem U',            type:'control',manufacturer:'Technopath',analyser:'Alinity c',note:'Urin',catalog:'',ident:''},
+  // --- KONTROLE — Randox ---
+  {gtin:'05055273217025',name:'HIL (Randox)',           type:'control',manufacturer:'Randox',analyser:'Alinity c',note:'Hemoliza/Ikterija/Lipemija',catalog:'',ident:''},
+  {gtin:'05055273203783',name:'HUM ASY L2 (Randox)',    type:'control',manufacturer:'Randox',analyser:'Alinity i',note:'',catalog:'',ident:''},
+  {gtin:'05055273203608',name:'HUM ASY L3 (Randox)',    type:'control',manufacturer:'Randox',analyser:'Alinity i',note:'',catalog:'',ident:''},
+  // --- KONTROLE — brez GTIN (skenirati!) ---
+  {gtin:'',name:'Myo single QC',                        type:'control',manufacturer:'',analyser:'Alinity i',note:'Mioglobin kontrola',catalog:'',ident:''},
+  {gtin:'',name:'Randox Humaser L1',                    type:'control',manufacturer:'Randox',analyser:'Alinity i',note:'Možno = HUM ASY L2',catalog:'',ident:''},
+  {gtin:'',name:'Randox Humaser L2',                    type:'control',manufacturer:'Randox',analyser:'Alinity i',note:'Možno = HUM ASY L3',catalog:'',ident:''},
+  {gtin:'',name:'Pool QC',                              type:'control',manufacturer:'',analyser:'',note:'Interni pool',catalog:'',ident:''},
+  // --- REAGENTI Alinity c ---
+  {gtin:'00380740114442',name:'ALT (SGOT) Reagent',            type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740114459',name:'AST (SGPT) Reagent',            type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740114466',name:'Albumin Reagent',               type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740114473',name:'Alkaline Phosphatase Reagent',  type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740114480',name:'Amylase Reagent',               type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740114497',name:'Total Bilirubin Reagent',       type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740114503',name:'Direct Bilirubin Reagent',      type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740114510',name:'BUN/Urea Reagent',              type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740114527',name:'Calcium Reagent',               type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740114534',name:'Cholesterol Reagent',           type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740114541',name:'Creatinine Reagent',            type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740114558',name:'GGT Reagent',                   type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740114565',name:'Glucose Reagent',               type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740114572',name:'HDL Cholesterol Reagent',       type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740114589',name:'LDL Cholesterol Reagent',       type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740114596',name:'LDH Reagent',                   type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740114602',name:'Lipase Reagent',                type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740114619',name:'Magnesium Reagent',             type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740114626',name:'Phosphorus Reagent',            type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740114633',name:'Total Protein Reagent',         type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740114640',name:'Triglycerides Reagent',         type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740114657',name:'Uric Acid Reagent',             type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  {gtin:'00380740130077',name:'CRP WR Reagent',                type:'reagent-bio',manufacturer:'Abbott Diagnostics',analyser:'Alinity c',note:'',catalog:'',ident:''},
+  // --- REAGENTI Alinity i ---
+  {gtin:'00380740131456',name:'Ferritin Reagent',              type:'reagent-imuno',manufacturer:'Abbott Diagnostics',analyser:'Alinity i',note:'',catalog:'',ident:''},
+  {gtin:'00380740121488',name:'Beta-HCG Reagent',              type:'reagent-imuno',manufacturer:'Abbott Diagnostics',analyser:'Alinity i',note:'',catalog:'',ident:''},
+  {gtin:'00380740153939',name:'PCT Reagent',                   type:'reagent-imuno',manufacturer:'Abbott Diagnostics',analyser:'Alinity i',note:'',catalog:'',ident:''},
+  {gtin:'00380740172275',name:'Myoglobin Reagent',             type:'reagent-imuno',manufacturer:'Abbott Diagnostics',analyser:'Alinity i',note:'',catalog:'',ident:''},
+  {gtin:'00380740130718',name:'hsTnI STAT Reagent',            type:'reagent-imuno',manufacturer:'Abbott Diagnostics',analyser:'Alinity i',note:'Troponin I',catalog:'',ident:''},
+  {gtin:'00380740165482',name:'CK-MB STAT Reagent',            type:'reagent-imuno',manufacturer:'Abbott Diagnostics',analyser:'Alinity i',note:'',catalog:'',ident:''},
+  // --- REAGENTI CS5100 (Siemens) — brez GTIN (skenirati!) ---
+  {gtin:'',name:'Dade Innovin',                                type:'reagent-bio',manufacturer:'Siemens',analyser:'CS5100',note:'Hemostaza — skenirati',catalog:'',ident:''},
+  {gtin:'',name:'Dade Actin FS',                               type:'reagent-bio',manufacturer:'Siemens',analyser:'CS5100',note:'Hemostaza — skenirati',catalog:'',ident:''},
+  {gtin:'',name:'Multifibren U',                               type:'reagent-bio',manufacturer:'Siemens',analyser:'CS5100',note:'Hemostaza — skenirati',catalog:'',ident:''},
+  {gtin:'',name:'Berichrom AT',                                type:'reagent-bio',manufacturer:'Siemens',analyser:'CS5100',note:'Hemostaza — skenirati',catalog:'',ident:''},
+  {gtin:'',name:'Innovance D-Dimer',                           type:'reagent-bio',manufacturer:'Siemens',analyser:'CS5100',note:'Hemostaza — skenirati',catalog:'',ident:''},
+];
+
+function loadBuiltin(){
+  var withG = BUILTIN_TEMPLATE.filter(function(x){return x.gtin;}).length;
+  var withoutG = BUILTIN_TEMPLATE.filter(function(x){return !x.gtin;}).length;
+  if(LIST.length && !confirm('Seznam ni prazen ('+LIST.length+'). Zamenjati s privzeto predlogo KCLJ ('+BUILTIN_TEMPLATE.length+' artiklov)?')) return;
+  LIST = BUILTIN_TEMPLATE.map(function(x){return Object.assign({},x);});
+  targetIndex = nextEmpty(0);
+  saveList(); setMode('fill'); render();
+  notify('Naloženo '+LIST.length+' artiklov ('+withG+' z GTIN, '+withoutG+' za skeniranje)','ok');
+}
 
 // ===== BOOT =====
 loadList();
