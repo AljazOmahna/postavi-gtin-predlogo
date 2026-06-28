@@ -71,12 +71,10 @@ tr.trow.tgt{background:rgba(56,189,248,.14)}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap}
 .search{margin:8px 0}
 .search input{width:100%}
-/* dva panela */
-.dual{display:grid;grid-template-rows:1fr 1fr;gap:10px;height:72vh}
-.panel{background:var(--bg);border:1px solid var(--border);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+/* panel Z GTIN */
+.panel{background:var(--bg);border:1px solid var(--border);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;height:36vh}
 .panel-hdr{padding:8px 10px;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
 .panel-hdr.ok{background:rgba(52,211,153,.12);color:var(--green);border-bottom:1px solid rgba(52,211,153,.25)}
-.panel-hdr.miss{background:rgba(248,113,113,.10);color:var(--red);border-bottom:1px solid rgba(248,113,113,.2)}
 .panel-body{overflow-y:auto;flex:1;padding:4px 0}
 .prow{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border-bottom:1px solid var(--border);cursor:pointer}
 .prow:last-child{border-bottom:none}
@@ -170,7 +168,7 @@ tr.trow.tgt{background:rgba(56,189,248,.14)}
   </div>
   <div class="toolbar" style="margin-bottom:6px">
     <button class="btn btn-g btn-sm" onclick="setFilter('all')" id="fAll">Vsi</button>
-    <button class="btn btn-g btn-sm" onclick="setFilter('miss')" id="fMiss">&#11036; Brez GTIN</button>
+    <button class="btn btn-g btn-sm on" onclick="setFilter('miss')" id="fMiss">&#11036; Brez GTIN</button>
     <button class="btn btn-g btn-sm" onclick="setFilter('has')" id="fHas">&#9989; Z GTIN</button>
   </div>
   <table>
@@ -179,17 +177,11 @@ tr.trow.tgt{background:rgba(56,189,248,.14)}
   </table>
 </div>
 
-<!-- DVA PANELA -->
+<!-- PANEL Z GTIN -->
 <div class="card" style="padding:10px">
-  <div class="dual">
-    <div class="panel">
-      <div class="panel-hdr ok">&#9989; Z GTIN <span class="pcnt" id="panelCntOk">0</span></div>
-      <div class="panel-body" id="panelOk"></div>
-    </div>
-    <div class="panel">
-      <div class="panel-hdr miss">&#11036; Brez GTIN <span class="pcnt" id="panelCntMiss">0</span></div>
-      <div class="panel-body" id="panelMiss"></div>
-    </div>
+  <div class="panel">
+    <div class="panel-hdr ok">&#9989; Z GTIN <span class="pcnt" id="panelCntOk">0</span></div>
+    <div class="panel-body" id="panelOk"></div>
   </div>
 </div>
 
@@ -272,7 +264,7 @@ var LIST=[];
 var MODE='fill';       // 'fill' | 'add'
 var targetIndex=-1;    // vrstica, ki jo trenutno polnimo
 var targetManual=false; // true = user kliknil vrstico → direktni vpis brez kataloškega ujemanja
-var FILTER='all';
+var FILTER='miss';
 var TYPES={calibrator:['Kalibrator','b-cal'],control:['Kontrola (QC)','b-qc'],'reagent-bio':['Reagent Bio','b-rb'],'reagent-imuno':['Reagent IMUNO','b-ri'],consumable:['Potros. mat.','b-co']};
 function loadList(){try{LIST=JSON.parse(localStorage.getItem('gtinPredlogaList')||'[]');}catch(e){LIST=[];}}
 function saveList(){try{localStorage.setItem('gtinPredlogaList',JSON.stringify(LIST));}catch(e){}}
@@ -506,12 +498,9 @@ function render(){
 }
 
 function renderPanels(){
-  var ok=[],miss=[];
-  for(var i=0;i<LIST.length;i++){
-    if(LIST[i].gtin)ok.push(i);else miss.push(i);
-  }
+  var ok=[];
+  for(var i=0;i<LIST.length;i++){if(LIST[i].gtin)ok.push(i);}
   $i('panelCntOk').textContent=ok.length;
-  $i('panelCntMiss').textContent=miss.length;
   $i('panelOk').innerHTML=ok.map(function(i){
     var it=LIST[i];
     return '<div class="prow" onclick="setTarget('+i+')">'+
@@ -520,14 +509,6 @@ function renderPanels(){
       '<div class="prow-gtin">'+esc(it.gtin)+'</div>'+
     '</div>';
   }).join('')||'<div class="empty">Ni zaklju&#269;enih.</div>';
-  $i('panelMiss').innerHTML=miss.map(function(i){
-    var it=LIST[i];var ty=TYPES[it.type]||['?','b-co'];
-    return '<div class="prow" onclick="setTarget('+i+')">'+
-      '<div><div class="prow-name">'+esc(it.name)+'</div>'+
-      '<div class="prow-sub">'+(it.analyser?esc(it.analyser):'')+(it.catalog?' &middot; '+esc(it.catalog):'')+'</div></div>'+
-      '<span class="badge '+ty[1]+'">'+ty[0]+'</span>'+
-    '</div>';
-  }).join('')||'<div class="empty">Vsi imajo GTIN! &#127881;</div>';
 }
 
 // ===== CSV =====
