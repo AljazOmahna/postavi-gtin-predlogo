@@ -71,6 +71,20 @@ tr.trow.tgt{background:rgba(56,189,248,.14)}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap}
 .search{margin:8px 0}
 .search input{width:100%}
+/* dva panela */
+.dual{display:grid;grid-template-rows:1fr 1fr;gap:10px;height:72vh}
+.panel{background:var(--bg);border:1px solid var(--border);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+.panel-hdr{padding:8px 10px;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.panel-hdr.ok{background:rgba(52,211,153,.12);color:var(--green);border-bottom:1px solid rgba(52,211,153,.25)}
+.panel-hdr.miss{background:rgba(248,113,113,.10);color:var(--red);border-bottom:1px solid rgba(248,113,113,.2)}
+.panel-body{overflow-y:auto;flex:1;padding:4px 0}
+.prow{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border-bottom:1px solid var(--border);cursor:pointer}
+.prow:last-child{border-bottom:none}
+.prow:active{background:rgba(56,189,248,.1)}
+.prow-name{font-size:12px;font-weight:600;color:var(--text)}
+.prow-sub{font-size:10px;color:var(--text3);margin-top:2px}
+.prow-gtin{font-family:var(--mono);font-size:10px;color:var(--accent2)}
+.pcnt{font-family:var(--mono);font-size:12px;font-weight:700;background:var(--bg3);padding:2px 7px;border-radius:6px}
 </style>
 </head>
 <body>
@@ -163,6 +177,20 @@ tr.trow.tgt{background:rgba(56,189,248,.14)}
     <thead><tr><th></th><th>Naziv</th><th>GTIN</th><th>Tip</th><th></th></tr></thead>
     <tbody id="listBody"></tbody>
   </table>
+</div>
+
+<!-- DVA PANELA -->
+<div class="card" style="padding:10px">
+  <div class="dual">
+    <div class="panel">
+      <div class="panel-hdr ok">&#9989; Z GTIN <span class="pcnt" id="panelCntOk">0</span></div>
+      <div class="panel-body" id="panelOk"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr miss">&#11036; Brez GTIN <span class="pcnt" id="panelCntMiss">0</span></div>
+      <div class="panel-body" id="panelMiss"></div>
+    </div>
+  </div>
 </div>
 
 <!-- UVOZ -->
@@ -474,6 +502,32 @@ function render(){
     }).join('');
   }
   $i('csvOut').textContent=buildCsv();
+  renderPanels();
+}
+
+function renderPanels(){
+  var ok=[],miss=[];
+  for(var i=0;i<LIST.length;i++){
+    if(LIST[i].gtin)ok.push(i);else miss.push(i);
+  }
+  $i('panelCntOk').textContent=ok.length;
+  $i('panelCntMiss').textContent=miss.length;
+  $i('panelOk').innerHTML=ok.map(function(i){
+    var it=LIST[i];
+    return '<div class="prow" onclick="setTarget('+i+')">'+
+      '<div><div class="prow-name">'+esc(it.name)+'</div>'+
+      '<div class="prow-sub">'+(it.analyser?esc(it.analyser):'')+(it.catalog?' &middot; '+esc(it.catalog):'')+'</div></div>'+
+      '<div class="prow-gtin">'+esc(it.gtin)+'</div>'+
+    '</div>';
+  }).join('')||'<div class="empty">Ni zaklju&#269;enih.</div>';
+  $i('panelMiss').innerHTML=miss.map(function(i){
+    var it=LIST[i];var ty=TYPES[it.type]||['?','b-co'];
+    return '<div class="prow" onclick="setTarget('+i+')">'+
+      '<div><div class="prow-name">'+esc(it.name)+'</div>'+
+      '<div class="prow-sub">'+(it.analyser?esc(it.analyser):'')+(it.catalog?' &middot; '+esc(it.catalog):'')+'</div></div>'+
+      '<span class="badge '+ty[1]+'">'+ty[0]+'</span>'+
+    '</div>';
+  }).join('')||'<div class="empty">Vsi imajo GTIN! &#127881;</div>';
 }
 
 // ===== CSV =====
