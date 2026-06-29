@@ -269,6 +269,19 @@ var TYPES={calibrator:['Kalibrator','b-cal'],control:['Kontrola (QC)','b-qc'],'r
 function loadList(){try{LIST=JSON.parse(localStorage.getItem('gtinPredlogaList')||'[]');}catch(e){LIST=[];}}
 function saveList(){try{localStorage.setItem('gtinPredlogaList',JSON.stringify(LIST));}catch(e){}}
 function nextEmpty(from){for(var i=Math.max(0,from);i<LIST.length;i++){if(!LIST[i].gtin)return i;}return -1;}
+// Ob zagonu posodobi katalog iz BUILTIN_TEMPLATE (propagira popravke kataloških številk)
+function syncCatalogsFromBuiltin(){
+  if(!LIST.length||!BUILTIN_TEMPLATE||!BUILTIN_TEMPLATE.length)return;
+  var byIdent={};
+  BUILTIN_TEMPLATE.forEach(function(t){if(t.ident)byIdent[t.ident]=t;});
+  var changed=false;
+  LIST.forEach(function(it){
+    var tmpl=it.ident?byIdent[it.ident]:null;
+    if(!tmpl)return;
+    if(tmpl.catalog&&it.catalog!==tmpl.catalog){it.catalog=tmpl.catalog;changed=true;}
+  });
+  if(changed)saveList();
+}
 
 // ===== NACIN =====
 function updateScanHint(){
@@ -341,6 +354,17 @@ function handleScan(code){
   // ===== DIREKTNI VPIS: user je kliknil vrstico =====
   if(targetManual&&targetIndex>=0&&targetIndex<LIST.length){
     var tgt=LIST[targetIndex];
+    // Validacija kataloga: ce artikel ima katalog, zahtevaj ujemanje AI 240
+    if(tgt.catalog){
+      if(!r.catalog){
+        setLastScan(info+' &mdash; artikel <b>'+esc(tgt.name)+'</b> zahteva AI 240 ('+esc(tgt.catalog)+'), koda ga nima','err');
+        notify('Koda nima kataloške (240) — ta artikel zahteva ujemanje','err');return;
+      }
+      if(findByCatalog(r.catalog).indexOf(targetIndex)<0){
+        setLastScan(info+' &mdash; AI 240 <b>'+esc(r.catalog)+'</b> se ne ujema s kataloško <b>'+esc(tgt.catalog)+'</b> artikla "'+esc(tgt.name)+'"','err');
+        notify('Katalog '+r.catalog+' ≠ '+tgt.catalog+' — napačen artikel?','err');return;
+      }
+    }
     if(dupG>=0&&dupG!==targetIndex){
       setLastScan(info+' &mdash; GTIN &#382;e vpisan pri: '+esc(LIST[dupG].name),'warn');
       notify('GTIN že obstaja: '+LIST[dupG].name,'warn');return;
@@ -1017,6 +1041,7 @@ function loadBuiltin(){
 
 // ===== BOOT =====
 loadList();
+syncCatalogsFromBuiltin();
 targetIndex=nextEmpty(0);
 setFilter('all');
 setMode('fill');
